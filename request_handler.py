@@ -5,7 +5,7 @@ class Request:
         pass
     
     def request_control(self,form,model,type):
-        
+        #get data from form
         name = form.name.data
         city = form.city.data
         state = form.state.data
@@ -16,6 +16,7 @@ class Request:
         facebook_link = form.facebook_link.data
         website_link = form.website_link.data
         seeking_description = form.seeking_description.data
+        #check model type and assign exclusive model fields
         if type=='venue':
             address = form.address.data
             seeking_talent = form.seeking_talent.data
@@ -46,12 +47,14 @@ class Request:
                 seeking_description=seeking_description,
             )
             return artist, genres
-    def model_control(self,model,type):
         
+    def model_control(self,model,type):
+        #initiate data list
         past_shows = []
         upcoming_shows = []
         past_shows_count = 0
         upcoming_shows_count = 0
+        #append genre to list
         genres = []
         for genre in model.genres:
             genres.append(genre)
@@ -91,15 +94,15 @@ class Request:
             "upcoming_shows_count": upcoming_shows_count
         }
         
-        
+         #check model type and assign exclusive model fields
         if type=='artist':
-            
             data["seeking_venue"] = model.seeking_venue
         else:
             data["address"] = model.address
             data["seeking_talent"] = model.seeking_talent
         return data
     def edit_get(self,form,model,type):
+        #assign form data to model
         form.name.data = model.name
         form.city.data = model.city
         form.state.data = model.state
@@ -119,6 +122,7 @@ class Request:
             form.seeking_talent.data = model.seeking_talent
         
     def edit_post(self,form,model,type):
+        #assign variables to form data
         name = form.name.data
         city = form.city.data
         state = form.state.data
