@@ -432,7 +432,6 @@ def create_show_submission():
     artist = Artist.query.filter_by(id=artist_id).first()
     if artist.seeking_venue:
       show = Show(artist_id=artist_id, venue_id=venue_id, start_time=start_time)
-      print(show)
       db.session.add(show)
       db.session.commit()
       # on successful db insert, flash success
