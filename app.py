@@ -39,7 +39,7 @@ class Venue(db.Model):
     state = db.Column(db.String(120))
     address = db.Column(db.String(120))
     phone = db.Column(db.String(120))
-    genre = db.relationship('VenueGenre', backref='venue',lazy=True)
+    genres = db.relationship('VenueGenre', backref='venue',lazy=True)
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
@@ -79,13 +79,21 @@ class Show(db.Model):
     venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'), nullable=False)
     start_time = db.Column(db.DateTime(), nullable=False)
     
+    def __repr__(self):
+      return f'{self.artist_id} {self.venue_id}'
+    
+    
 class Genre(db.Model):
     __tablename__ = 'Genre'
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20))
+    #model relationships
     artist_genre = db.relationship('ArtistGenre', backref='genre', lazy=True)
     venue_genre = db.relationship('VenueGenre', backref='genre', lazy=True)
+    
+    def __repr__(self):
+        return f'{self.name}'
     
 class ArtistGenre(db.Model):
     __tablename__ = 'artist_genre'
@@ -94,12 +102,18 @@ class ArtistGenre(db.Model):
     genre_id = db.Column(db.Integer, db.ForeignKey('Genre.id'), nullable=False)
     artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'), nullable=False)
     
+    def __repr__(self):
+      return f'{Genre.query.filter_by(id=self.genre_id).first().name}'
+    
 class VenueGenre(db.Model):
     __tablename__ = 'venue_genre'
     
     id = db.Column(db.Integer, primary_key=True)
     genre_id = db.Column(db.Integer, db.ForeignKey('Genre.id'), nullable=False)
     venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'), nullable=False)
+
+    def __repr__(self):
+        return f'{Genre.query.filter_by(id=self.genre_id).first().name}'
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -129,7 +143,24 @@ def index():
 def venues():
   # TODO: replace with real venues data.
   #num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
-  data = Venue.query.all()
+  
+  venues = Venue.query.all()
+  cities = []
+  states = []
+  #using set to avoid duplicate data
+  location = set()
+  data = []
+  #save cities and states in location set
+  for venue in venues:
+    location.add((venue.city,venue.state))
+  print(location)
+  #group data by location
+  for place in location:
+    data.append({
+      'city':place[0],
+      'state':place[1],
+      'venues':Venue.query.filter_by(city=place[0],state=place[1]),
+    })
   return render_template('pages/venues.html', areas=data);
 
 @app.route('/venues/search', methods=['POST'])
@@ -139,12 +170,14 @@ def search_venues():
   # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
   search_term=request.form.get('search_term', '')
   venues = Venue.query.filter(Venue.name.ilike(f'%{search_term}%')).all()
+  #append list of result to array
   venues_arr = []
   for venue in venues:
     venues_arr.append({
       'id':venue.id,
       'name': venue.name,
     })
+  #added count to response data
   response = {
     'count':len(venues_arr),
     'data': venues_arr,
@@ -155,7 +188,10 @@ def search_venues():
 def show_venue(venue_id):
   # shows the venue page with the given venue_id
   # TODO: replace with real venue data from the venues table, using venue_id
-  data = Venue.query.filter_by(id=venue_id).first()
+  venue = Venue.query.filter_by(id=venue_id).first()
+  #request handler class
+  Req = Request()
+  data = Req.model_control(venue, 'venue')
   return render_template('pages/show_venue.html', venue=data)
 
 #  Create Venue
@@ -170,6 +206,7 @@ def create_venue_form():
 def create_venue_submission():
   form = VenueForm()
   try:
+    #request handler class
     Req = Request()
     venue, genres = Req.request_control(form,Venue, 'venue')
     db.session.add(venue)
@@ -234,13 +271,15 @@ def search_artists():
   # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
   # search for "band" should return "The Wild Sax Band".
   search_term=request.form.get('search_term', '')
-  artists = artist.query.filter(artist.name.ilike(f'%{search_term}%')).all()
+  artists = Artist.query.filter(Artist.name.ilike(f'%{search_term}%')).all()
   artists_arr = []
+  #append list of result to array
   for artist in artists:
     artists_arr.append({
       'id':artist.id,
       'name': artist.name,
     })
+  #added count to response data
   response = {
     'count':len(artists_arr),
     'data': artists_arr,
@@ -251,7 +290,11 @@ def search_artists():
 def show_artist(artist_id):
   # shows the artist page with the given artist_id
   # TODO: replace with real artist data from the artist table, using artist_id
-  data = Artist.query.filter_by(id=artist_id).first()
+  artist = Artist.query.filter_by(id=artist_id).first()
+  #request handler class
+  Req = Request()
+  data = Req.model_control(artist, 'artist')
+
   return render_template('pages/show_artist.html', artist=data)
 
 #  Update
@@ -260,19 +303,13 @@ def show_artist(artist_id):
 def edit_artist(artist_id):
   form = ArtistForm()
   # TODO: populate form with fields from artist with ID <artist_id>
-  artist = Artist.query.filter_by(id=artist_id)
   artist = Artist.query.filter_by(id=artist_id).first()
-  form.name.data = artist.name
-  form.city.data = artist.city
-  form.state.data = artist.state
-  form.phone.data = artist.phone
-  form.facebook_link.data = artist.facebook_link
-  form.image_link.data = artist.image_link
-  form.website_link.data = artist.website_link
-  form.seeking_venue.data = artist.seeking_venue
-  form.seeking_description.data = artist.seeking_description
+  #request handler class
+  Req = Request()
+  Req.edit_get(form,artist, 'artist')
   artist_genres = ArtistGenre.query.filter_by(artist_id=artist.id).all()
   genre_arr = []
+  #append genre to array and render on template
   for artist_genre in artist_genres:
     genre = Genre.query.filter_by(id=artist_genre.genre_id).first()
     genre_arr.append(genre.name)
@@ -281,37 +318,37 @@ def edit_artist(artist_id):
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
+  form = ArtistForm()
   # TODO: take values from the form submitted, and update existing
   # artist record with ID <artist_id> using the new attributes
   try:
-    name = request.form['name']
-    city = request.form['city']
-    state = request.form['state']
-    phone = request.form['phone']
-    image_link = request.form['image_link']
-    genres = request.form['genres']
-    facebook_link = request.form['facebook_link']
-    website_link = request.form['website_link']
-    seeking_venue = request.form.get('seeking_venue','n')
-    seeking_description = request.form['seeking_description']
-
     artist = Artist.query.filter_by(id=artist_id).first()
-    artist.name=name
-    artist.city=city
-    artist.state=state
-    artist.phone=phone
-    artist.image_link=image_link
-    artist.genres=genres
-    artist.facebook_link=facebook_link
-    artist.website_link=website_link
-    artist.seeking_venue=seeking_venue
-    artist.seeking_description=seeking_description
+    #request handler class
+    Req = Request()
+    Req.edit_post(form, artist, 'artist')
+    artist_genre = ArtistGenre.query.filter_by(artist_id=artist.id).all()
+    for each in artist_genre:
+      db.session.delete(each)
     db.session.commit()
+    genres = form.genres.data
+    for i in genres:
+          #if genre does not exist
+      if bool(Genre.query.filter_by(name=i).first()) is False:
+        #save genre in db
+        genre = Genre(name=i)
+        db.session.add(genre)
+        db.session.commit()
+      else:
+        #get genre if exist
+        genre = Genre.query.filter_by(name=i).first()
+      #Attach genre to artist
+      artist_genre = ArtistGenre(genre_id=genre.id, artist_id=artist.id)
+      db.session.add(artist_genre)
+      db.session.commit()
   except:
     db.session.rollback()
     print(sys.exc_info())
   finally:
-    print(artist.seeking_venue)
     db.session.close()
     return redirect(url_for('show_artist', artist_id=artist_id))
 
@@ -320,18 +357,12 @@ def edit_venue(venue_id):
   form = VenueForm()
   # TODO: populate form with values from venue with ID <venue_id>
   venue = Venue.query.filter_by(id=venue_id).first()
-  form.name.data = venue.name
-  form.city.data = venue.city
-  form.state.data = venue.state
-  form.address.data = venue.address
-  form.phone.data = venue.phone
-  form.facebook_link.data = venue.facebook_link
-  form.image_link.data = venue.image_link
-  form.website_link.data = venue.website_link
-  form.seeking_talent.data = venue.seeking_talent
-  form.seeking_description.data = venue.seeking_description
+  #request handler class
+  Req = Request()
+  Req.edit_get(form,venue, 'venue')
   venue_genres = VenueGenre.query.filter_by(venue_id=venue.id).all()
   genre_arr = []
+  #append genre to array and render on template
   for venue_genre in venue_genres:
     genre = Genre.query.filter_by(id=venue_genre.genre_id).first()
     genre_arr.append(genre.name)
@@ -340,12 +371,17 @@ def edit_venue(venue_id):
 
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
-  
+  form = VenueForm()
   try:
+    venue = Venue.query.filter_by(id=venue_id).first()
+    #request handler class
     Req = Request()
-    venue, genres = Req.request_control(form,Venue, 'venue')
-    db.session.add(venue)
+    Req.edit_post(form, venue, 'venue')
+    venue_genre = VenueGenre.query.filter_by(venue_id=venue.id).all()
+    for each in venue_genre:
+      db.session.delete(each)
     db.session.commit()
+    genres = form.genres.data
     for i in genres:
       #if genre does not exist
       if bool(Genre.query.filter_by(name=i).first()) is False:
@@ -386,6 +422,7 @@ def create_artist_submission():
     artist, genres = Req.request_control(form,Artist,'artist')
     db.session.add(artist)
     db.session.commit()
+    genres = form.genres.data
     for i in genres:
       #if genre does not exist
       if bool(Genre.query.filter_by(name=i).first()) is False:
@@ -421,7 +458,18 @@ def create_artist_submission():
 def shows():
   # displays list of shows at /shows
   # TODO: replace with real venues data.
-  data = Show.query.all()
+  shows = Show.query.all()
+  data = [] 
+  for show in shows:
+    # append shows to list
+    data.append({
+        "venue_id": show.venue.id,
+        "venue_name": show.venue.name,
+        "artist_id": show.artist.id,
+        "artist_name": show.artist.name,
+        "artist_image_link": show.artist.image_link,
+        "start_time": str(show.start_time)
+    })
   return render_template('pages/shows.html', shows=data)
 
 @app.route('/shows/create')
@@ -438,13 +486,16 @@ def create_show_submission():
     artist_id = request.form.get('artist_id')
     venue_id = request.form.get('venue_id')
     start_time = request.form.get('start_time')
-    print(artist_id)
-    show = Show(artist_id=artist_id, venue_id=venue_id, start_time=start_time)
-    print(show)
-    db.session.add(show)
-    db.session.commit()
-    # on successful db insert, flash success
-    flash('Show was successfully listed!')
+    artist = Artist.query.filter_by(id=artist_id).first()
+    if artist.seeking_venue:
+      show = Show(artist_id=artist_id, venue_id=venue_id, start_time=start_time)
+      print(show)
+      db.session.add(show)
+      db.session.commit()
+      # on successful db insert, flash success
+      flash('Show was successfully listed!')
+    else:
+      flash('Artist not seeking for shows')
   except:
     # TODO: on unsuccessful db insert, flash an error instead.
     flash('Show was not succesfully listed')
