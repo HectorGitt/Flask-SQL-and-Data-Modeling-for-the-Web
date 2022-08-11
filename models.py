@@ -1,4 +1,3 @@
-from app import *
 from flask_sqlalchemy import SQLAlchemy
 #----------------------------------------------------------------------------#
 # Models.

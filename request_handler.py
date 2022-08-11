@@ -9,7 +9,8 @@ class Request:
         name = form.name.data
         city = form.city.data
         state = form.state.data
-        phone = form.phone.data
+        phone_str = form.phone.data
+        phone = phone_str[0:3] + phone_str[4-7] + phone_str[8-11]
         image_link = form.image_link.data
         genres = form.genres.data
         facebook_link = form.facebook_link.data
@@ -102,7 +103,11 @@ class Request:
         form.name.data = model.name
         form.city.data = model.city
         form.state.data = model.state
-        form.phone.data = model.phone
+        #convert phone data to xxx-xxx-xxxx
+        phone_str = str(model.phone)
+        phone = f'{phone_str[0:3]}-{phone_str[3:6]}-{phone_str[6:10]}'
+        form.phone.data = phone
+        
         form.facebook_link.data = model.facebook_link
         form.image_link.data = model.image_link
         form.website_link.data = model.website_link
@@ -117,7 +122,10 @@ class Request:
         name = form.name.data
         city = form.city.data
         state = form.state.data
-        phone = form.phone.data
+        #convert phone data from xxx-xxx-xxxx to xxxxxxxxxx
+        phone_str = form.phone.data
+        phone = f'{phone_str[0:3]}{phone_str[4:7]}{phone_str[8:12]}'
+        
         image_link = form.image_link.data
         facebook_link = form.facebook_link.data
         website_link = form.website_link.data
